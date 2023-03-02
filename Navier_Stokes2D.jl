@@ -1,8 +1,4 @@
-using Pkg
-Pkg.add("IterativeSolvers")
-Pkg.pin("IterativeSolvers")
-Pkg.add("LaTeXStrings")
-Pkg.pin("LaTeXStrings")
+
 using LinearAlgebra, SparseArrays, IterativeSolvers
 
 function VorticityBoundaryConditions!(ω, ψ, Δx, Δy, un, us, ve, vw)
@@ -26,11 +22,7 @@ function GaussSiedel!(ϕ, Ap, An, As, Ae, Aw, Rp, res; λ=1, maxiter=1000)
         ϕW = ϕ[i+0, j-1]
         ϕN = ϕ[i-1, j+0]
         ϕS = ϕ[i+1, j+0]
-        res[i, j] = Rp[i, j] - (Ap * ϕP
-                                + An * ϕN
-                                + As * ϕS
-                                + Ae * ϕE
-                                + Aw * ϕW)
+        res[i, j] = Rp[i, j] - (Ap * ϕP+ An * ϕN+ As * ϕS+ Ae * ϕE+ Aw * ϕW)
         Δϕ = res[i, j] / Ap
         ϕ[i, j] = λ * (ϕ[i, j] + Δϕ) + (1 - λ) * ϕ[i, j]
       end
