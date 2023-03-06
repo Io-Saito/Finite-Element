@@ -1,5 +1,5 @@
-
-using LinearAlgebra, SparseArrays, IterativeSolvers
+using LinearAlgebra, SparseArrays, IterativeSolvers, Plots
+plot()
 
 function VorticityBoundaryConditions!(ω, ψ, Δx, Δy, un, us, ve, vw)
   ω[:, end] .= 2 * ((ψ[:, end] - ψ[:, end-1]) / (Δx^2) .- ve / Δx)
@@ -7,7 +7,6 @@ function VorticityBoundaryConditions!(ω, ψ, Δx, Δy, un, us, ve, vw)
   ω[end, :] .= 2 * ((ψ[end, :] - ψ[end-1, :]) / (Δy^2) .+ us / Δy)
   ω[1, :] .= 2 * ((ψ[1, :] - ψ[2, :]) / (Δy^2) .+ un / Δy)
 end
-
 
 function GaussSiedel!(ϕ, Ap, An, As, Ae, Aw, Rp, res; λ=1, maxiter=1000)
   normRes = 1
@@ -22,7 +21,7 @@ function GaussSiedel!(ϕ, Ap, An, As, Ae, Aw, Rp, res; λ=1, maxiter=1000)
         ϕW = ϕ[i+0, j-1]
         ϕN = ϕ[i-1, j+0]
         ϕS = ϕ[i+1, j+0]
-        res[i, j] = Rp[i, j] - (Ap * ϕP+ An * ϕN+ As * ϕS+ Ae * ϕE+ Aw * ϕW)
+        res[i, j] = Rp[i, j] - (Ap * ϕP + An * ϕN + As * ϕS + Ae * ϕE + Aw * ϕW)
         Δϕ = res[i, j] / Ap
         ϕ[i, j] = λ * (ϕ[i, j] + Δϕ) + (1 - λ) * ϕ[i, j]
       end
@@ -31,7 +30,6 @@ function GaussSiedel!(ϕ, Ap, An, As, Ae, Aw, Rp, res; λ=1, maxiter=1000)
   end
   return k
 end
-
 
 function LinearSolve!(A, x, b)
   # Solves the equation Ax = b assuming zero Dirichlet BCs everywhere
@@ -124,19 +122,24 @@ struct Results
   steps
   Re
 end
-ShowStreamlines(sol::Results) = contour(sol.x, sol.y, reverse(reverse(sol.ψ, dims=1), dims=2),
+
+ShowStreamlines(sol::Results) = heatmap(sol.x, sol.y, reverse(reverse(sol.ψ, dims=1), dims=2),
   aspectratio=1, framestyle=:box,
   xlims=(sol.x[1], sol.x[end]),
   ylims=(sol.y[1], sol.y[end]),
   legend=:none, grid=:none)
-  
 
+ShowVorticitylines(sol::Results) = heatmap(sol.x, sol.y, reverse(reverse(sol.ω, dims=1), dims=2),
+  aspectratio=1, framestyle=:box,
+  xlims=(sol.x[1], sol.x[end]),
+  ylims=(sol.y[1], sol.y[end]),
+  legend=:none, grid=:none)
 
 function LidDrivenCavity(;
   tfinal=Inf,
-  Lx=1, Ly=1, CFL=0.5, Re=100,
+  Lx=1, Ly=1, CFL=0.5, Re=50,
   Nx=65, Ny=65,
-  u_n=1, u_s=0, v_w=0, v_e=0,
+  u_n=1, u_s=1, v_w=0, v_e=0,
   printfreq=10)
   t0 = time() # begin timing
   println("------------------Ny = $(Ny), Nx = $(Nx) ---------------")
@@ -145,6 +148,8 @@ function LidDrivenCavity(;
   x = 0:Δx:Lx
   y = 0:Δy:Ly
   Δt = CFL * Δx
+  a = Animation()
+  b = Animation()
 
   # Construct matrix for Poisson equation
   A_poisson = BuildPoissonMatrix(Ny, Nx, Δx, Δy) # for coNxgrad
@@ -167,7 +172,7 @@ function LidDrivenCavity(;
 
   ######### Begin time-stepping #########
   k0, t = 0, 0
-  while t < tfinal && maximum(residual) > 1e-8
+  @gif while t < tfinal && maximum(residual) > 1e-8
     t += Δt
     k0 += 1
 
@@ -191,16 +196,18 @@ function LidDrivenCavity(;
       println("Step: $k0 \t Time: $(round(t,digits=3))\t",
         "|Δω|: $(round((residual[1]),digits=8)) \t",
         "|Δψ|: $(round((residual[2]),digits=8)) \t")
+      R = Results(ψ, ω, hcat(ω_hist, ψ_hist), x, y, t, k0, Re)
+      frame(a, ShowStreamlines(R))
+      frame(b, ShowVorticitylines(R))
     end
+
   end
   tt = round(time() - t0, digits=3) # end timing
   println("This took $tt seconds.")
   println("--------------------------------------------------------")
   # Create a struct containing the results
-  Results(ψ, ω, hcat(ω_hist, ψ_hist), x, y, t, k0, Re)
+  gif(a, "streamline.gif")
+  gif(b, "vorticityline.gif")
 end
 
-sol1 = LidDrivenCavity()
-using Plots
-ShowStreamlines(sol1)
-savefig("plot.png")
+LidDrivenCavity()
